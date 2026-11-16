@@ -1,0 +1,243 @@
+CS336 Project 2, Step 1: Functional Dependencies (canonical cover)
+==================================================================
+Data: hmda_2017_nj_all-records_labels.csv (2017, New Jersey, all records),
+349,563 rows, 78 columns.
+Team: Sonakshi Sharma (ss4910), Kenneth Wang (ksw94), James Kurian (jjk369),
+      Maanya (netID: ______)
+
+Format: {left side} -> {right side}. NULL (blank) is treated as an ordinary
+value. Every dependency below was checked against all 349,563 rows and holds
+with zero violations.
+
+
+1. First normal form
+--------------------
+Columns kept from Project 1:
+  sequence_number  row number 1..N, primary key of the application (Project 1)
+  location_id      surrogate key for one location (allowed by the assignment)
+
+The repeating groups break 1NF, so these 26 columns are removed:
+  applicant_race_1..5, applicant_race_name_1..5,
+  co_applicant_race_1..5, co_applicant_race_name_1..5,
+  denial_reason_1..3, denial_reason_name_1..3
+
+and these 6 columns are added in their place (6 added < 26 removed):
+  race_number           which slot (1-5) the race was reported in
+  race, race_name       the race code and its label
+  denial_reason_number  which slot (1-3) the denial reason was reported in
+  denial_reason, denial_reason_name   the reason code and its label
+
+No other column is added, removed or renamed. The data in first normal form
+is these four relations:
+
+  APPLICATION_1NF       one row per application: the other 52 original
+                        columns + location_id (53 columns)
+  APPLICANT_RACE_1NF    (sequence_number, race_number, race, race_name)
+                        one row per non-blank applicant_race_k, race_number = k
+  CO_APPLICANT_RACE_1NF (sequence_number, race_number, race, race_name)
+                        one row per non-blank co_applicant_race_k,
+                        race_number = k
+  DENIAL_1NF            (sequence_number, denial_reason_number, denial_reason,
+                         denial_reason_name)
+                        one row per non-blank denial_reason_k,
+                        denial_reason_number = k
+
+The slot number is the original position k, not a renumbering: 26 rows have
+a gap in their denial reasons (for example only denial_reason_2 is filled),
+and each value keeps its original k.
+
+
+2. Canonical cover
+------------------
+Relation: APPLICATION_1NF
+
+FD1  {sequence_number} -> {as_of_year, respondent_id, agency_code, loan_type,
+     property_type, loan_purpose, owner_occupancy, loan_amount_000s,
+     preapproval, action_taken, location_id, applicant_ethnicity,
+     co_applicant_ethnicity, applicant_sex, co_applicant_sex,
+     applicant_income_000s, purchaser_type, rate_spread, hoepa_status,
+     lien_status}
+
+FD2  {location_id} -> {state_code, county_code, msamd, census_tract_number,
+     population, minority_population, hud_median_family_income,
+     tract_to_msamd_income, number_of_owner_occupied_units,
+     number_of_1_to_4_family_units}
+
+FD3  {state_code, county_code, msamd, census_tract_number, population,
+     minority_population, hud_median_family_income, tract_to_msamd_income,
+     number_of_owner_occupied_units, number_of_1_to_4_family_units}
+     -> {location_id}
+
+FD4  {agency_code} -> {agency_name, agency_abbr}
+FD5  {loan_type} -> {loan_type_name}
+FD6  {property_type} -> {property_type_name}
+FD7  {loan_purpose} -> {loan_purpose_name}
+FD8  {owner_occupancy} -> {owner_occupancy_name}
+FD9  {preapproval} -> {preapproval_name}
+FD10 {action_taken} -> {action_taken_name}
+FD11 {msamd} -> {msamd_name}
+FD12 {state_code} -> {state_name, state_abbr}
+FD13 {state_code, county_code} -> {county_name}
+FD14 {applicant_ethnicity} -> {applicant_ethnicity_name}
+FD15 {co_applicant_ethnicity} -> {co_applicant_ethnicity_name}
+FD16 {applicant_sex} -> {applicant_sex_name}
+FD17 {co_applicant_sex} -> {co_applicant_sex_name}
+FD18 {purchaser_type} -> {purchaser_type_name}
+FD19 {hoepa_status} -> {hoepa_status_name}
+FD20 {lien_status} -> {lien_status_name}
+FD21 {} -> {edit_status, edit_status_name, application_date_indicator}
+
+Relation: APPLICANT_RACE_1NF
+
+FD22 {sequence_number, race_number} -> {race}
+FD23 {race} -> {race_name}
+
+Relation: CO_APPLICANT_RACE_1NF
+
+FD24 {sequence_number, race_number} -> {race}
+FD25 {race} -> {race_name}
+
+Relation: DENIAL_1NF
+
+FD26 {sequence_number, denial_reason_number} -> {denial_reason}
+FD27 {denial_reason} -> {denial_reason_name}
+
+Why this is a canonical cover: every left side appears once per relation,
+no right-side attribute can be derived from the other dependencies, and no
+left-side attribute can be dropped. For example, FD1 lists location_id but
+not the ten location columns, because those already follow through FD2,
+and no *_name column, because each one follows from its code.
+Candidate keys of the 1NF relations: {sequence_number} for APPLICATION_1NF,
+{sequence_number, race_number} for both race relations, and
+{sequence_number, denial_reason_number} for DENIAL_1NF.
+
+
+3. BCNF decomposition (one table per determinant; PK = primary key)
+--------------------------------------------------------------------
+application        (PK sequence_number, as_of_year, respondent_id,
+                    agency_code, loan_type, property_type, loan_purpose,
+                    owner_occupancy, loan_amount_000s, preapproval,
+                    action_taken, location_id, applicant_ethnicity,
+                    co_applicant_ethnicity, applicant_sex, co_applicant_sex,
+                    applicant_income_000s, purchaser_type, rate_spread,
+                    hoepa_status, lien_status)                       FD1
+location           (PK location_id, state_code, county_code, msamd,
+                    census_tract_number, population, minority_population,
+                    hud_median_family_income, tract_to_msamd_income,
+                    number_of_owner_occupied_units,
+                    number_of_1_to_4_family_units)
+                    the ten location columns are also UNIQUE      FD2, FD3
+agency             (PK agency_code, agency_name, agency_abbr)            FD4
+loan_type          (PK loan_type, loan_type_name)                        FD5
+property_type      (PK property_type, property_type_name)                FD6
+loan_purpose       (PK loan_purpose, loan_purpose_name)                  FD7
+owner_occupancy    (PK owner_occupancy, owner_occupancy_name)            FD8
+preapproval        (PK preapproval, preapproval_name)                    FD9
+action_taken       (PK action_taken, action_taken_name)                 FD10
+msa_md             (PK msamd, msamd_name)                               FD11
+state              (PK state_code, state_name, state_abbr)              FD12
+county             (PK state_code + county_code, county_name)           FD13
+applicant_ethnicity    (PK applicant_ethnicity,
+                        applicant_ethnicity_name)                       FD14
+co_applicant_ethnicity (PK co_applicant_ethnicity,
+                        co_applicant_ethnicity_name)                    FD15
+applicant_sex      (PK applicant_sex, applicant_sex_name)               FD16
+co_applicant_sex   (PK co_applicant_sex, co_applicant_sex_name)         FD17
+purchaser_type     (PK purchaser_type, purchaser_type_name)             FD18
+hoepa_status       (PK hoepa_status, hoepa_status_name)                 FD19
+lien_status        (PK lien_status, lien_status_name)                   FD20
+null_columns       (edit_status, edit_status_name,
+                    application_date_indicator)                         FD21
+                    exactly one row, all NULL; its key is the empty set {},
+                    so it has no primary key column (see note 4.3)
+applicant_race     (PK sequence_number + race_number, race)             FD22
+co_applicant_race  (PK sequence_number + race_number, race)             FD24
+race               (PK race, race_name)                           FD23, FD25
+application_denial (PK sequence_number + denial_reason_number,
+                    denial_reason)                                      FD26
+denial_reason      (PK denial_reason, denial_reason_name)               FD27
+
+25 tables. Every table is in BCNF: the left side of every dependency that
+holds inside a table is a key of that table. Every dependency in the cover
+lies inside one table, so all of them are preserved, and every split is on a
+shared key, so the decomposition is lossless.
+
+
+4. Notes on the choices we made
+-------------------------------
+4.1 Race is one table; ethnicity and sex are one table per role.
+   First normal form replaces the 20 applicant and co-applicant race
+   columns with one race column (plus race_number), so FD23 and FD25 are
+   the same dependency {race} -> {race_name}; the CSV gives every race code
+   the same label for applicant and co-applicant. It is stored once, in
+   race, which both join tables reference. Code 8 ("No co-applicant") is
+   only valid for a co-applicant, so the constraints script must block it in
+   applicant_race.
+   Ethnicity and sex are original columns, which the assignment says must
+   not be renamed, so FD14-FD17 each get their own table with the original
+   column names. The tables are not identical: the co-applicant tables also
+   hold code 5 ("No co-applicant"), so the foreign key alone rejects code 5
+   for an applicant.
+
+4.2 County (FD13). A county code is unique only within a state, so
+   county_name depends on {state_code, county_code}. {county_code} ->
+   {county_name} also holds in this file, but only because every row is New
+   Jersey.
+
+4.3 Columns that are blank in every row (FD21). edit_status,
+   edit_status_name and application_date_indicator are NULL in all 349,563
+   rows, so they are constant: {} -> {...}. This is what makes the one-row
+   table suggested in the assignment hints a lossless split, and it is
+   stored in null_columns. {edit_status} -> {edit_status_name} also holds,
+   but it follows from FD21, so it is not listed separately. A table whose
+   only row is all NULL cannot have a primary key column (key columns
+   cannot be NULL); its key is the empty set.
+
+4.4 Location (FD2, FD3). As the assignment allows, the ten location columns
+   together are treated as the only candidate key of a location, with no
+   dependencies among them. location_id is the integer key built from them,
+   and it is the only location column kept in application. Every row has a
+   state_code, so every application gets a location_id.
+
+4.5 msamd_name (FD11). MSA/MD codes 35620 and 37980 have a blank msamd_name
+   in every row where they appear (115 rows). Following the CSV, those two
+   codes are stored with a NULL name.
+
+4.6 Slots (FD22, FD24, FD26). race_number and denial_reason_number keep the
+   slot the value came from, so the original columns can be rebuilt exactly.
+
+4.7 Respondent. {respondent_id, agency_code} identifies a lender but
+   determines no other column, so it needs no table of its own;
+   respondent_id stays in application.
+
+
+5. Dependencies we observed but did not include
+-----------------------------------------------
+- Label -> code ({loan_type_name} -> {loan_type}, {agency_name} ->
+  {agency_code, agency_abbr}, and so on). Every label happens to be unique,
+  but labels describe codes rather than identify them. Including these
+  would not change any table.
+- Constant columns. as_of_year is always 2017 and state_code is always 34
+  (NJ), so {} -> {as_of_year} and {} -> {state_code, state_name, state_abbr}
+  hold in this file. They are not real rules: the data covers one year and
+  one state, and the assignment says the state table should expect more
+  states.
+- Dependencies among the ten location columns (for example
+  {census_tract_number} -> {state_code}). Excluded because the assignment
+  says to treat the ten columns as the only candidate key.
+- {sequence_number, race} -> {race_number} (and the same for denial
+  reasons). It holds because no application repeats a race or reason; the
+  slot number, not the code, is what the original columns need, so the slot
+  is the key.
+
+
+6. How we checked this
+----------------------
+normalization_check.py (submitted with this file) reads the dependencies
+straight from this file and, using the textbook algorithms: confirms each
+holds on all 349,563 rows; confirms the set is a canonical cover (no
+redundant dependency, no extraneous attribute); finds the candidate keys;
+tests every table for BCNF over every subset of its columns; runs the chase
+test for a lossless join; and tests dependency preservation. It then splits
+the real data into the 25 tables, joins them back and confirms that the
+result is identical to the original CSV. Output: normalization_check_output.txt.

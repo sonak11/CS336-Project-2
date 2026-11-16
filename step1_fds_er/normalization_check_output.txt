@@ -1,0 +1,127 @@
+Dependencies read from functional_dependencies.txt
+  APPLICATION_1NF: 21 FDs (FD1, FD2, FD3, FD4, FD5, FD6, FD7, FD8, FD9, FD10, FD11, FD12, FD13, FD14, FD15, FD16, FD17, FD18, FD19, FD20, FD21)
+  APPLICANT_RACE_1NF: 2 FDs (FD22, FD23)
+  CO_APPLICANT_RACE_1NF: 2 FDs (FD24, FD25)
+  DENIAL_1NF: 2 FDs (FD26, FD27)
+
+[PASS] 1NF column bookkeeping  -- 78 original columns, 26 repeating columns removed, 6 added, main relation has 53 columns
+
+1NF data: 349563 applications, 2135 locations, 351510 applicant race rows, 350201 co-applicant race rows, 45088 denial rows
+
+[PASS] FD1 holds in data (APPLICATION_1NF)  -- 349563 distinct left sides, 0 violations
+[PASS] FD2 holds in data (APPLICATION_1NF)  -- 2135 distinct left sides, 0 violations
+[PASS] FD3 holds in data (APPLICATION_1NF)  -- 2135 distinct left sides, 0 violations
+[PASS] FD4 holds in data (APPLICATION_1NF)  -- 6 distinct left sides, 0 violations
+[PASS] FD5 holds in data (APPLICATION_1NF)  -- 4 distinct left sides, 0 violations
+[PASS] FD6 holds in data (APPLICATION_1NF)  -- 3 distinct left sides, 0 violations
+[PASS] FD7 holds in data (APPLICATION_1NF)  -- 3 distinct left sides, 0 violations
+[PASS] FD8 holds in data (APPLICATION_1NF)  -- 3 distinct left sides, 0 violations
+[PASS] FD9 holds in data (APPLICATION_1NF)  -- 3 distinct left sides, 0 violations
+[PASS] FD10 holds in data (APPLICATION_1NF)  -- 8 distinct left sides, 0 violations
+[PASS] FD11 holds in data (APPLICATION_1NF)  -- 12 distinct left sides, 0 violations
+[PASS] FD12 holds in data (APPLICATION_1NF)  -- 1 distinct left sides, 0 violations
+[PASS] FD13 holds in data (APPLICATION_1NF)  -- 22 distinct left sides, 0 violations
+[PASS] FD14 holds in data (APPLICATION_1NF)  -- 4 distinct left sides, 0 violations
+[PASS] FD15 holds in data (APPLICATION_1NF)  -- 5 distinct left sides, 0 violations
+[PASS] FD16 holds in data (APPLICATION_1NF)  -- 4 distinct left sides, 0 violations
+[PASS] FD17 holds in data (APPLICATION_1NF)  -- 5 distinct left sides, 0 violations
+[PASS] FD18 holds in data (APPLICATION_1NF)  -- 10 distinct left sides, 0 violations
+[PASS] FD19 holds in data (APPLICATION_1NF)  -- 2 distinct left sides, 0 violations
+[PASS] FD20 holds in data (APPLICATION_1NF)  -- 4 distinct left sides, 0 violations
+[PASS] FD21 holds in data (APPLICATION_1NF)  -- 1 distinct left sides, 0 violations
+[PASS] FD22 holds in data (APPLICANT_RACE_1NF)  -- 351510 distinct left sides, 0 violations
+[PASS] FD23 holds in data (APPLICANT_RACE_1NF)  -- 7 distinct left sides, 0 violations
+[PASS] FD24 holds in data (CO_APPLICANT_RACE_1NF)  -- 350201 distinct left sides, 0 violations
+[PASS] FD25 holds in data (CO_APPLICANT_RACE_1NF)  -- 8 distinct left sides, 0 violations
+[PASS] FD26 holds in data (DENIAL_1NF)  -- 45088 distinct left sides, 0 violations
+[PASS] FD27 holds in data (DENIAL_1NF)  -- 9 distinct left sides, 0 violations
+
+[PASS] APPLICATION_1NF: each left side appears once
+[PASS] APPLICATION_1NF: canonical cover (no redundant or extraneous attributes)
+[PASS] APPLICANT_RACE_1NF: each left side appears once
+[PASS] APPLICANT_RACE_1NF: canonical cover (no redundant or extraneous attributes)
+[PASS] CO_APPLICANT_RACE_1NF: each left side appears once
+[PASS] CO_APPLICANT_RACE_1NF: canonical cover (no redundant or extraneous attributes)
+[PASS] DENIAL_1NF: each left side appears once
+[PASS] DENIAL_1NF: canonical cover (no redundant or extraneous attributes)
+
+  candidate keys of APPLICATION_1NF: {sequence_number}
+  candidate keys of APPLICANT_RACE_1NF: {race_number, sequence_number}
+  candidate keys of CO_APPLICANT_RACE_1NF: {race_number, sequence_number}
+  candidate keys of DENIAL_1NF: {denial_reason_number, sequence_number}
+
+[PASS] APPLICATION_1NF: decomposition covers every column
+[PASS] APPLICANT_RACE_1NF: decomposition covers every column
+[PASS] CO_APPLICANT_RACE_1NF: decomposition covers every column
+[PASS] DENIAL_1NF: decomposition covers every column
+[PASS] BCNF: application (21 columns)
+[PASS] BCNF: location (11 columns)
+[PASS] BCNF: agency (3 columns)
+[PASS] BCNF: msa_md (2 columns)
+[PASS] BCNF: state (3 columns)
+[PASS] BCNF: county (3 columns)
+[PASS] BCNF: applicant_ethnicity (2 columns)
+[PASS] BCNF: co_applicant_ethnicity (2 columns)
+[PASS] BCNF: applicant_sex (2 columns)
+[PASS] BCNF: co_applicant_sex (2 columns)
+[PASS] BCNF: null_columns (3 columns)
+[PASS] BCNF: loan_type (2 columns)
+[PASS] BCNF: property_type (2 columns)
+[PASS] BCNF: loan_purpose (2 columns)
+[PASS] BCNF: owner_occupancy (2 columns)
+[PASS] BCNF: preapproval (2 columns)
+[PASS] BCNF: action_taken (2 columns)
+[PASS] BCNF: purchaser_type (2 columns)
+[PASS] BCNF: hoepa_status (2 columns)
+[PASS] BCNF: lien_status (2 columns)
+[PASS] BCNF: applicant_race (3 columns)
+[PASS] BCNF: race (2 columns)
+[PASS] BCNF: co_applicant_race (3 columns)
+[PASS] BCNF: race (2 columns)
+[PASS] BCNF: application_denial (3 columns)
+[PASS] BCNF: denial_reason (2 columns)
+
+[PASS] Lossless join (chase): APPLICATION_1NF
+[PASS] Lossless join (chase): APPLICANT_RACE_1NF
+[PASS] Lossless join (chase): CO_APPLICANT_RACE_1NF
+[PASS] Lossless join (chase): DENIAL_1NF
+[PASS] Dependency preservation: APPLICATION_1NF
+[PASS] Dependency preservation: APPLICANT_RACE_1NF
+[PASS] Dependency preservation: CO_APPLICANT_RACE_1NF
+[PASS] Dependency preservation: DENIAL_1NF
+
+[PASS] Shared race table: applicant and co-applicant mappings agree  -- 8 codes
+[PASS] null_columns has exactly one row, all NULL
+[PASS] location: ten columns are unique (FD3)  -- 2135 locations
+[PASS] application: one row per sequence_number  -- 349563 rows
+[PASS] Split the data into the 25 tables and join it back: identical to the CSV  -- 349563 rows x 78 columns compared, 0 differ
+
+Tables and row counts:
+  application            349563
+  location                 2135
+  agency                      6
+  loan_type                   4
+  property_type               3
+  loan_purpose                3
+  owner_occupancy             3
+  preapproval                 3
+  action_taken                8
+  purchaser_type             10
+  hoepa_status                2
+  lien_status                 4
+  msa_md                     11
+  state                       1
+  county                     21
+  applicant_ethnicity         4
+  co_applicant_ethnicity        5
+  applicant_sex               4
+  co_applicant_sex            5
+  race                        8
+  denial_reason               9
+  applicant_race         351510
+  co_applicant_race      350201
+  application_denial      45088
+  null_columns                1
+  25 tables
+
+RESULT: ALL CHECKS PASSED
