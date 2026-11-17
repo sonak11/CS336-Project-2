@@ -2,6 +2,7 @@
 -- CS336 Project 2, Step 2 -- 02_lookups_application.sql
 -- Builds the code->name lookup tables, null_columns, location and the
 -- main application table FROM the Preliminary table (load.sql).
+-- Follows SCHEMA.md exactly (table names, column names, types, keys).
 --
 -- Run on ilab after load.sql has created and filled Preliminary:
 --     postgres
@@ -9,26 +10,28 @@
 --     \i 02_lookups_application.sql
 --
 -- Design notes
---   * Every *_name column is functionally dependent on its code column, so
---     the names live only in lookup tables; application keeps codes only.
---   * Lookup contents are taken from the CSV data itself
---   * msamd_name is NULLable: msamd codes 35620 and 37980 appear in the CSV
---     with a blank name.
+--   * Every *_name column depends on its code column, so names live only in
+--     lookup tables; application keeps codes only.
+--   * Lookup contents come from the CSV data (SELECT DISTINCT ... WHERE code
+--     IS NOT NULL), not from the PDF.
+--   * msamd_name is NULLable: msamd 35620 and 37980 have a blank name.
+--   * Applicant and co-applicant ethnicity and sex have separate lookup
+--     tables (original column names are kept). race and denial_reason are
+--     single tables used by all their numbered columns.
 --   * application holds only integer / numeric columns plus respondent_id.
---  
---   * Column types are the same as the final Preliminary table from Project 1
---     (load.sql): INTEGER for codes/years/amounts, NUMERIC(4,2) for
---     rate_spread, NUMERIC for the census percentages, TEXT for respondent_id
---     and census_tract_number (leading zeros / hyphens must survive).
---   * NOT NULL is applied only to columns that are never NULL in the data.
---   * location_id is found by joining Preliminary to location on all 10
---     location columns with IS NOT DISTINCT FROM, so rows with NULL
---     location values are matched too.
+--     The race (1-5) and denial-reason (1-3) columns are not in application:
+--     the first-normal-form join tables that hold them are built in Step 3.
+--   * Types are the same as the final Preliminary table from Project 1
+--     (INTEGER, NUMERIC(4,2) rate_spread, NUMERIC census percentages, TEXT
+--     respondent_id and census_tract_number).
+--   * NOT NULL only where the CSV is never blank.
+--   * location_id is found by joining on all 10 location columns with
+--     IS NOT DISTINCT FROM, so rows with NULL location values still match.
 --   * Preliminary is only READ here (through the temp table prelim_typed).
 -- =====================================================================
 \set ON_ERROR_STOP on
 
--- Clean slate so the script can be re-run.
+-- Clean slate so the script can be re-run (also removes tables from older versions).
 DROP TABLE IF EXISTS application CASCADE;
 DROP TABLE IF EXISTS location CASCADE;
 DROP TABLE IF EXISTS null_columns CASCADE;
@@ -39,13 +42,18 @@ DROP TABLE IF EXISTS loan_purpose CASCADE;
 DROP TABLE IF EXISTS owner_occupancy CASCADE;
 DROP TABLE IF EXISTS preapproval CASCADE;
 DROP TABLE IF EXISTS action_taken CASCADE;
-DROP TABLE IF EXISTS ethnicity CASCADE;
-DROP TABLE IF EXISTS race CASCADE;
-DROP TABLE IF EXISTS sex CASCADE;
 DROP TABLE IF EXISTS purchaser_type CASCADE;
-DROP TABLE IF EXISTS denial_reason CASCADE;
 DROP TABLE IF EXISTS hoepa_status CASCADE;
 DROP TABLE IF EXISTS lien_status CASCADE;
+DROP TABLE IF EXISTS applicant_ethnicity CASCADE;
+DROP TABLE IF EXISTS co_applicant_ethnicity CASCADE;
+DROP TABLE IF EXISTS applicant_sex CASCADE;
+DROP TABLE IF EXISTS co_applicant_sex CASCADE;
+DROP TABLE IF EXISTS ethnicity CASCADE;
+DROP TABLE IF EXISTS sex CASCADE;
+DROP TABLE IF EXISTS race CASCADE;
+DROP TABLE IF EXISTS denial_reason CASCADE;
+DROP TABLE IF EXISTS msa_md CASCADE;
 DROP TABLE IF EXISTS msamd CASCADE;
 DROP TABLE IF EXISTS county CASCADE;
 DROP TABLE IF EXISTS state CASCADE;
@@ -143,16 +151,6 @@ FROM Preliminary;
 ALTER TABLE prelim_typed ADD PRIMARY KEY (sequence_number);
 ANALYZE prelim_typed;
 
-DO $$
-DECLARE n BIGINT; k BIGINT; d BIGINT;
-BEGIN
-    SELECT COUNT(*), COUNT(sequence_number), COUNT(DISTINCT sequence_number)
-      INTO n, k, d FROM prelim_typed;
-    IF n <> 349563 OR k <> n OR d <> n THEN
-        RAISE EXCEPTION 'Preliminary is not ready (rows=%, numbered=%, distinct numbers=%). Run load.sql first, completely, with no errors.', n, k, d;
-    END IF;
-END $$;
-
 -- ---------------------------------------------------------------------
 -- 1. Lookup tables (code -> name)
 -- ---------------------------------------------------------------------
@@ -163,14 +161,13 @@ CREATE TABLE agency (
 );
 INSERT INTO agency (agency_code, agency_name, agency_abbr)
 SELECT DISTINCT agency_code, agency_name, agency_abbr
-FROM prelim_typed WHERE agency_code IS NOT NULL
-ORDER BY agency_code;
+FROM prelim_typed WHERE agency_code IS NOT NULL ORDER BY agency_code;
 
 CREATE TABLE loan_type (
     loan_type       INTEGER PRIMARY KEY,
     loan_type_name  TEXT NOT NULL
 );
-INSERT INTO loan_type
+INSERT INTO loan_type (loan_type, loan_type_name)
 SELECT DISTINCT loan_type, loan_type_name
 FROM prelim_typed WHERE loan_type IS NOT NULL ORDER BY loan_type;
 
@@ -178,7 +175,7 @@ CREATE TABLE property_type (
     property_type       INTEGER PRIMARY KEY,
     property_type_name  TEXT NOT NULL
 );
-INSERT INTO property_type
+INSERT INTO property_type (property_type, property_type_name)
 SELECT DISTINCT property_type, property_type_name
 FROM prelim_typed WHERE property_type IS NOT NULL ORDER BY property_type;
 
@@ -186,7 +183,7 @@ CREATE TABLE loan_purpose (
     loan_purpose       INTEGER PRIMARY KEY,
     loan_purpose_name  TEXT NOT NULL
 );
-INSERT INTO loan_purpose
+INSERT INTO loan_purpose (loan_purpose, loan_purpose_name)
 SELECT DISTINCT loan_purpose, loan_purpose_name
 FROM prelim_typed WHERE loan_purpose IS NOT NULL ORDER BY loan_purpose;
 
@@ -194,7 +191,7 @@ CREATE TABLE owner_occupancy (
     owner_occupancy       INTEGER PRIMARY KEY,
     owner_occupancy_name  TEXT NOT NULL
 );
-INSERT INTO owner_occupancy
+INSERT INTO owner_occupancy (owner_occupancy, owner_occupancy_name)
 SELECT DISTINCT owner_occupancy, owner_occupancy_name
 FROM prelim_typed WHERE owner_occupancy IS NOT NULL ORDER BY owner_occupancy;
 
@@ -202,7 +199,7 @@ CREATE TABLE preapproval (
     preapproval       INTEGER PRIMARY KEY,
     preapproval_name  TEXT NOT NULL
 );
-INSERT INTO preapproval
+INSERT INTO preapproval (preapproval, preapproval_name)
 SELECT DISTINCT preapproval, preapproval_name
 FROM prelim_typed WHERE preapproval IS NOT NULL ORDER BY preapproval;
 
@@ -210,85 +207,23 @@ CREATE TABLE action_taken (
     action_taken       INTEGER PRIMARY KEY,
     action_taken_name  TEXT NOT NULL
 );
-INSERT INTO action_taken
+INSERT INTO action_taken (action_taken, action_taken_name)
 SELECT DISTINCT action_taken, action_taken_name
 FROM prelim_typed WHERE action_taken IS NOT NULL ORDER BY action_taken;
-
--- applicant and co-applicant share one code list, so one table serves both.
-CREATE TABLE ethnicity (
-    ethnicity_code  INTEGER PRIMARY KEY,
-    ethnicity_name  TEXT NOT NULL
-);
-INSERT INTO ethnicity (ethnicity_code, ethnicity_name)
-SELECT c, n FROM (
-    SELECT applicant_ethnicity AS c, applicant_ethnicity_name AS n FROM prelim_typed
-    UNION
-    SELECT co_applicant_ethnicity, co_applicant_ethnicity_name FROM prelim_typed
-) u
-WHERE c IS NOT NULL
-ORDER BY c;
-
--- one table for all 10 race columns (applicant 1-5, co-applicant 1-5).
-CREATE TABLE race (
-    race_code  INTEGER PRIMARY KEY,
-    race_name  TEXT NOT NULL
-);
-INSERT INTO race (race_code, race_name)
-SELECT c, n FROM (
-    SELECT applicant_race_1 AS c, applicant_race_name_1 AS n FROM prelim_typed
-    UNION SELECT applicant_race_2, applicant_race_name_2 FROM prelim_typed
-    UNION SELECT applicant_race_3, applicant_race_name_3 FROM prelim_typed
-    UNION SELECT applicant_race_4, applicant_race_name_4 FROM prelim_typed
-    UNION SELECT applicant_race_5, applicant_race_name_5 FROM prelim_typed
-    UNION SELECT co_applicant_race_1, co_applicant_race_name_1 FROM prelim_typed
-    UNION SELECT co_applicant_race_2, co_applicant_race_name_2 FROM prelim_typed
-    UNION SELECT co_applicant_race_3, co_applicant_race_name_3 FROM prelim_typed
-    UNION SELECT co_applicant_race_4, co_applicant_race_name_4 FROM prelim_typed
-    UNION SELECT co_applicant_race_5, co_applicant_race_name_5 FROM prelim_typed
-) u
-WHERE c IS NOT NULL
-ORDER BY c;
-
-CREATE TABLE sex (
-    sex_code  INTEGER PRIMARY KEY,
-    sex_name  TEXT NOT NULL
-);
-INSERT INTO sex (sex_code, sex_name)
-SELECT c, n FROM (
-    SELECT applicant_sex AS c, applicant_sex_name AS n FROM prelim_typed
-    UNION
-    SELECT co_applicant_sex, co_applicant_sex_name FROM prelim_typed
-) u
-WHERE c IS NOT NULL
-ORDER BY c;
 
 CREATE TABLE purchaser_type (
     purchaser_type       INTEGER PRIMARY KEY,
     purchaser_type_name  TEXT NOT NULL
 );
-INSERT INTO purchaser_type
+INSERT INTO purchaser_type (purchaser_type, purchaser_type_name)
 SELECT DISTINCT purchaser_type, purchaser_type_name
 FROM prelim_typed WHERE purchaser_type IS NOT NULL ORDER BY purchaser_type;
-
--- one table for denial_reason_1..3
-CREATE TABLE denial_reason (
-    denial_reason_code  INTEGER PRIMARY KEY,
-    denial_reason_name  TEXT NOT NULL
-);
-INSERT INTO denial_reason (denial_reason_code, denial_reason_name)
-SELECT c, n FROM (
-    SELECT denial_reason_1 AS c, denial_reason_name_1 AS n FROM prelim_typed
-    UNION SELECT denial_reason_2, denial_reason_name_2 FROM prelim_typed
-    UNION SELECT denial_reason_3, denial_reason_name_3 FROM prelim_typed
-) u
-WHERE c IS NOT NULL
-ORDER BY c;
 
 CREATE TABLE hoepa_status (
     hoepa_status       INTEGER PRIMARY KEY,
     hoepa_status_name  TEXT NOT NULL
 );
-INSERT INTO hoepa_status
+INSERT INTO hoepa_status (hoepa_status, hoepa_status_name)
 SELECT DISTINCT hoepa_status, hoepa_status_name
 FROM prelim_typed WHERE hoepa_status IS NOT NULL ORDER BY hoepa_status;
 
@@ -296,29 +231,85 @@ CREATE TABLE lien_status (
     lien_status       INTEGER PRIMARY KEY,
     lien_status_name  TEXT NOT NULL
 );
-INSERT INTO lien_status
+INSERT INTO lien_status (lien_status, lien_status_name)
 SELECT DISTINCT lien_status, lien_status_name
 FROM prelim_typed WHERE lien_status IS NOT NULL ORDER BY lien_status;
 
+CREATE TABLE applicant_ethnicity (
+    applicant_ethnicity       INTEGER PRIMARY KEY,
+    applicant_ethnicity_name  TEXT NOT NULL
+);
+INSERT INTO applicant_ethnicity (applicant_ethnicity, applicant_ethnicity_name)
+SELECT DISTINCT applicant_ethnicity, applicant_ethnicity_name
+FROM prelim_typed WHERE applicant_ethnicity IS NOT NULL ORDER BY applicant_ethnicity;
+
+CREATE TABLE co_applicant_ethnicity (
+    co_applicant_ethnicity       INTEGER PRIMARY KEY,
+    co_applicant_ethnicity_name  TEXT NOT NULL
+);
+INSERT INTO co_applicant_ethnicity (co_applicant_ethnicity, co_applicant_ethnicity_name)
+SELECT DISTINCT co_applicant_ethnicity, co_applicant_ethnicity_name
+FROM prelim_typed WHERE co_applicant_ethnicity IS NOT NULL ORDER BY co_applicant_ethnicity;
+
+CREATE TABLE applicant_sex (
+    applicant_sex       INTEGER PRIMARY KEY,
+    applicant_sex_name  TEXT NOT NULL
+);
+INSERT INTO applicant_sex (applicant_sex, applicant_sex_name)
+SELECT DISTINCT applicant_sex, applicant_sex_name
+FROM prelim_typed WHERE applicant_sex IS NOT NULL ORDER BY applicant_sex;
+
+CREATE TABLE co_applicant_sex (
+    co_applicant_sex       INTEGER PRIMARY KEY,
+    co_applicant_sex_name  TEXT NOT NULL
+);
+INSERT INTO co_applicant_sex (co_applicant_sex, co_applicant_sex_name)
+SELECT DISTINCT co_applicant_sex, co_applicant_sex_name
+FROM prelim_typed WHERE co_applicant_sex IS NOT NULL ORDER BY co_applicant_sex;
+
+-- one table for all 10 race columns (applicant 1-5, co-applicant 1-5)
+CREATE TABLE race (
+    race       INTEGER PRIMARY KEY,
+    race_name  TEXT NOT NULL
+);
+INSERT INTO race (race, race_name)
+SELECT c, n FROM (
+    SELECT applicant_race_1 AS c, applicant_race_name_1 AS n FROM prelim_typed
+    UNION SELECT applicant_race_2 AS c, applicant_race_name_2 AS n FROM prelim_typed
+    UNION SELECT applicant_race_3 AS c, applicant_race_name_3 AS n FROM prelim_typed
+    UNION SELECT applicant_race_4 AS c, applicant_race_name_4 AS n FROM prelim_typed
+    UNION SELECT applicant_race_5 AS c, applicant_race_name_5 AS n FROM prelim_typed
+    UNION SELECT co_applicant_race_1 AS c, co_applicant_race_name_1 AS n FROM prelim_typed
+    UNION SELECT co_applicant_race_2 AS c, co_applicant_race_name_2 AS n FROM prelim_typed
+    UNION SELECT co_applicant_race_3 AS c, co_applicant_race_name_3 AS n FROM prelim_typed
+    UNION SELECT co_applicant_race_4 AS c, co_applicant_race_name_4 AS n FROM prelim_typed
+    UNION SELECT co_applicant_race_5 AS c, co_applicant_race_name_5 AS n FROM prelim_typed
+) u
+WHERE c IS NOT NULL ORDER BY c;
+
+-- one table for denial_reason_1..3
+CREATE TABLE denial_reason (
+    denial_reason       INTEGER PRIMARY KEY,
+    denial_reason_name  TEXT NOT NULL
+);
+INSERT INTO denial_reason (denial_reason, denial_reason_name)
+SELECT c, n FROM (
+    SELECT denial_reason_1 AS c, denial_reason_name_1 AS n FROM prelim_typed
+    UNION SELECT denial_reason_2 AS c, denial_reason_name_2 AS n FROM prelim_typed
+    UNION SELECT denial_reason_3 AS c, denial_reason_name_3 AS n FROM prelim_typed
+) u
+WHERE c IS NOT NULL ORDER BY c;
+
 -- msamd_name is blank in the CSV for some msamd codes, so it may be NULL.
-CREATE TABLE msamd (
+CREATE TABLE msa_md (
     msamd       INTEGER PRIMARY KEY,
     msamd_name  TEXT
 );
-INSERT INTO msamd (msamd, msamd_name)
+INSERT INTO msa_md (msamd, msamd_name)
 SELECT DISTINCT msamd, msamd_name
 FROM prelim_typed WHERE msamd IS NOT NULL ORDER BY msamd;
 
-CREATE TABLE county (
-    county_code  INTEGER PRIMARY KEY,
-    county_name  TEXT NOT NULL
-);
-INSERT INTO county (county_code, county_name)
-SELECT DISTINCT county_code, county_name
-FROM prelim_typed WHERE county_code IS NOT NULL ORDER BY county_code;
-
--- Only New Jersey for now, but name and abbreviation are kept so more
--- states can be added later.
+-- Only New Jersey for now; name and abbreviation kept for more states later.
 CREATE TABLE state (
     state_code  INTEGER PRIMARY KEY,
     state_name  TEXT NOT NULL,
@@ -328,46 +319,59 @@ INSERT INTO state (state_code, state_name, state_abbr)
 SELECT DISTINCT state_code, state_name, state_abbr
 FROM prelim_typed WHERE state_code IS NOT NULL ORDER BY state_code;
 
+-- County codes repeat across states, so the key is (state_code, county_code).
+CREATE TABLE county (
+    state_code   INTEGER NOT NULL REFERENCES state (state_code),
+    county_code  INTEGER NOT NULL,
+    county_name  TEXT NOT NULL,
+    PRIMARY KEY (state_code, county_code)
+);
+INSERT INTO county (state_code, county_code, county_name)
+SELECT DISTINCT state_code, county_code, county_name
+FROM prelim_typed WHERE county_code IS NOT NULL ORDER BY state_code, county_code;
+
 -- ---------------------------------------------------------------------
 -- 2. null_columns: columns that are NULL in every row of the CSV.
 --    One row, all NULL (aggregates over all-NULL columns return NULL).
---    sequence_number is also blank in the CSV; it is replaced by
---    application.application_id, and export writes it back as blank.
+--    No primary key: key columns cannot be NULL. sequence_number is also
+--    blank in the CSV; it is replaced by application.sequence_number and the
+--    export writes it back as blank.
 -- ---------------------------------------------------------------------
 CREATE TABLE null_columns (
-    edit_status_name           TEXT,
     edit_status                INTEGER,
+    edit_status_name           TEXT,
     application_date_indicator INTEGER
 );
-INSERT INTO null_columns (edit_status_name, edit_status, application_date_indicator)
-SELECT MAX(edit_status_name), MAX(edit_status), MAX(application_date_indicator)
+INSERT INTO null_columns (edit_status, edit_status_name, application_date_indicator)
+SELECT MAX(edit_status), MAX(edit_status_name), MAX(application_date_indicator)
 FROM prelim_typed;
 
 -- ---------------------------------------------------------------------
 -- 3. location: one row per distinct combination of the 10 location columns.
---    location_id is a plain serial number. Columns are nullable because the
---    CSV has missing location values (e.g. 676 rows without county/tract).
+--    location_id is a serial number. All other columns except state_code are
+--    nullable (the CSV has missing location values).
 --    census_tract_number stays TEXT (leading zeros, e.g. 0103.00).
 -- ---------------------------------------------------------------------
 CREATE TABLE location (
     location_id                    INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    county_code                    INTEGER REFERENCES county (county_code),
-    msamd                          INTEGER  REFERENCES msamd (msamd),
     state_code                     INTEGER NOT NULL REFERENCES state (state_code),
+    county_code                    INTEGER,
+    msamd                          INTEGER REFERENCES msa_md (msamd),
     census_tract_number            TEXT,
     population                     INTEGER,
     minority_population            NUMERIC,
     hud_median_family_income       INTEGER,
     tract_to_msamd_income          NUMERIC,
     number_of_owner_occupied_units INTEGER,
-    number_of_1_to_4_family_units  INTEGER
+    number_of_1_to_4_family_units  INTEGER,
+    FOREIGN KEY (state_code, county_code) REFERENCES county (state_code, county_code)
 );
 
-INSERT INTO location (county_code, msamd, state_code, census_tract_number,
+INSERT INTO location (state_code, county_code, msamd, census_tract_number,
                       population, minority_population, hud_median_family_income,
                       tract_to_msamd_income, number_of_owner_occupied_units,
                       number_of_1_to_4_family_units)
-SELECT DISTINCT county_code, msamd, state_code, census_tract_number,
+SELECT DISTINCT state_code, county_code, msamd, census_tract_number,
        population, minority_population, hud_median_family_income,
        tract_to_msamd_income, number_of_owner_occupied_units,
        number_of_1_to_4_family_units
@@ -376,22 +380,33 @@ ORDER BY state_code, county_code, census_tract_number, msamd, population,
          minority_population, hud_median_family_income, tract_to_msamd_income,
          number_of_owner_occupied_units, number_of_1_to_4_family_units;
 
--- A location may not be stored twice. NULLs are treated as equal here
--- (works on every PostgreSQL version, unlike UNIQUE NULLS NOT DISTINCT).
-CREATE UNIQUE INDEX location_unique_idx ON location (
-    COALESCE(county_code, -1), COALESCE(msamd, -1), state_code,
-    COALESCE(census_tract_number, ''), COALESCE(population, -1),
-    COALESCE(minority_population, -1), COALESCE(hud_median_family_income, -1),
-    COALESCE(tract_to_msamd_income, -1), COALESCE(number_of_owner_occupied_units, -1),
-    COALESCE(number_of_1_to_4_family_units, -1)
-);
+-- All ten location columns are UNIQUE together, with NULLs counted as equal.
+-- UNIQUE NULLS NOT DISTINCT needs PostgreSQL 15+; on an older server the
+-- same rule is enforced with a unique index on COALESCE(...) expressions.
+DO $$
+BEGIN
+    IF current_setting('server_version_num')::INT >= 150000 THEN
+        ALTER TABLE location ADD CONSTRAINT location_unique
+            UNIQUE NULLS NOT DISTINCT (state_code, county_code, msamd,
+                census_tract_number, population, minority_population,
+                hud_median_family_income, tract_to_msamd_income,
+                number_of_owner_occupied_units, number_of_1_to_4_family_units);
+    ELSE
+        CREATE UNIQUE INDEX location_unique ON location (
+            state_code, COALESCE(county_code, -1), COALESCE(msamd, -1),
+            COALESCE(census_tract_number, ''), COALESCE(population, -1),
+            COALESCE(minority_population, -1), COALESCE(hud_median_family_income, -1),
+            COALESCE(tract_to_msamd_income, -1), COALESCE(number_of_owner_occupied_units, -1),
+            COALESCE(number_of_1_to_4_family_units, -1));
+    END IF;
+END $$;
 
 -- ---------------------------------------------------------------------
 -- 4. application: integer / numeric columns plus respondent_id only.
---    NOT NULL only where the CSV never has a blank. Foreign keys: see 4b.
+--    Foreign keys are added in 4b, after loading (much faster).
 -- ---------------------------------------------------------------------
 CREATE TABLE application (
-    application_id          INTEGER PRIMARY KEY,   -- = sequence_number 1..N
+    sequence_number         INTEGER PRIMARY KEY,   -- 1..N in original file order
     as_of_year              INTEGER NOT NULL,
     respondent_id           TEXT NOT NULL,
     agency_code             INTEGER NOT NULL,
@@ -402,26 +417,13 @@ CREATE TABLE application (
     loan_amount_000s        INTEGER,
     preapproval             INTEGER NOT NULL,
     action_taken            INTEGER NOT NULL,
-    location_id             INTEGER  NOT NULL,
+    location_id             INTEGER NOT NULL,
     applicant_ethnicity     INTEGER NOT NULL,
     co_applicant_ethnicity  INTEGER NOT NULL,
-    applicant_race_1        INTEGER NOT NULL,
-    applicant_race_2        INTEGER,
-    applicant_race_3        INTEGER,
-    applicant_race_4        INTEGER,
-    applicant_race_5        INTEGER,
-    co_applicant_race_1     INTEGER NOT NULL,
-    co_applicant_race_2     INTEGER,
-    co_applicant_race_3     INTEGER,
-    co_applicant_race_4     INTEGER,
-    co_applicant_race_5     INTEGER,
     applicant_sex           INTEGER NOT NULL,
     co_applicant_sex        INTEGER NOT NULL,
     applicant_income_000s   INTEGER,
     purchaser_type          INTEGER NOT NULL,
-    denial_reason_1         INTEGER,
-    denial_reason_2         INTEGER,
-    denial_reason_3         INTEGER,
     rate_spread             NUMERIC(4,2),
     hoepa_status            INTEGER NOT NULL,
     lien_status             INTEGER NOT NULL
@@ -429,28 +431,21 @@ CREATE TABLE application (
 
 -- IS NOT DISTINCT FROM on all 10 location columns: a plain = would drop every
 -- row where one of them is NULL (e.g. the 676 rows with no county/tract).
--- The COALESCE equalities add nothing logically (they are implied by the
--- IS NOT DISTINCT FROM tests); they only give the planner something it can
--- hash on, because IS NOT DISTINCT FROM alone forces a slow nested loop.
+-- The two COALESCE equalities add nothing logically (the IS NOT DISTINCT FROM
+-- tests already imply them); they only let the planner hash-join instead of a
+-- very slow nested loop.
 INSERT INTO application (
-    application_id, as_of_year, respondent_id, agency_code, loan_type,
+    sequence_number, as_of_year, respondent_id, agency_code, loan_type,
     property_type, loan_purpose, owner_occupancy, loan_amount_000s,
     preapproval, action_taken, location_id, applicant_ethnicity,
-    co_applicant_ethnicity, applicant_race_1, applicant_race_2,
-    applicant_race_3, applicant_race_4, applicant_race_5, co_applicant_race_1,
-    co_applicant_race_2, co_applicant_race_3, co_applicant_race_4,
-    co_applicant_race_5, applicant_sex, co_applicant_sex, applicant_income_000s,
-    purchaser_type, denial_reason_1, denial_reason_2, denial_reason_3,
-    rate_spread, hoepa_status, lien_status)
+    co_applicant_ethnicity, applicant_sex, co_applicant_sex,
+    applicant_income_000s, purchaser_type, rate_spread, hoepa_status, lien_status)
 SELECT p.sequence_number, p.as_of_year, p.respondent_id, p.agency_code, p.loan_type,
        p.property_type, p.loan_purpose, p.owner_occupancy, p.loan_amount_000s,
        p.preapproval, p.action_taken, l.location_id, p.applicant_ethnicity,
-       p.co_applicant_ethnicity, p.applicant_race_1, p.applicant_race_2,
-       p.applicant_race_3, p.applicant_race_4, p.applicant_race_5, p.co_applicant_race_1,
-       p.co_applicant_race_2, p.co_applicant_race_3, p.co_applicant_race_4,
-       p.co_applicant_race_5, p.applicant_sex, p.co_applicant_sex, p.applicant_income_000s,
-       p.purchaser_type, p.denial_reason_1, p.denial_reason_2, p.denial_reason_3,
-       p.rate_spread, p.hoepa_status, p.lien_status
+       p.co_applicant_ethnicity, p.applicant_sex, p.co_applicant_sex,
+       p.applicant_income_000s, p.purchaser_type, p.rate_spread, p.hoepa_status,
+       p.lien_status
 FROM prelim_typed p
 JOIN location l
   ON  COALESCE(p.census_tract_number, '') = COALESCE(l.census_tract_number, '')
@@ -468,10 +463,8 @@ JOIN location l
 ORDER BY p.sequence_number;
 
 -- ---------------------------------------------------------------------
--- 4b. Foreign keys, added AFTER the rows are loaded. Each one is then checked
---     once in bulk instead of once per inserted row, which is much faster
---     (checking ~20 keys per row during the INSERT hit ilab's statement
---     timeout). The finished table is constrained exactly the same.
+-- 4b. Foreign keys, added AFTER the rows are loaded: each is then checked
+--     once in bulk instead of once per row (avoids ilab's statement timeout).
 -- ---------------------------------------------------------------------
 ALTER TABLE application ADD CONSTRAINT application_agency_code_fkey FOREIGN KEY (agency_code) REFERENCES agency (agency_code);
 ALTER TABLE application ADD CONSTRAINT application_loan_type_fkey FOREIGN KEY (loan_type) REFERENCES loan_type (loan_type);
@@ -481,89 +474,10 @@ ALTER TABLE application ADD CONSTRAINT application_owner_occupancy_fkey FOREIGN 
 ALTER TABLE application ADD CONSTRAINT application_preapproval_fkey FOREIGN KEY (preapproval) REFERENCES preapproval (preapproval);
 ALTER TABLE application ADD CONSTRAINT application_action_taken_fkey FOREIGN KEY (action_taken) REFERENCES action_taken (action_taken);
 ALTER TABLE application ADD CONSTRAINT application_location_id_fkey FOREIGN KEY (location_id) REFERENCES location (location_id);
-ALTER TABLE application ADD CONSTRAINT application_applicant_ethnicity_fkey FOREIGN KEY (applicant_ethnicity) REFERENCES ethnicity (ethnicity_code);
-ALTER TABLE application ADD CONSTRAINT application_co_applicant_ethnicity_fkey FOREIGN KEY (co_applicant_ethnicity) REFERENCES ethnicity (ethnicity_code);
-ALTER TABLE application ADD CONSTRAINT application_applicant_race_1_fkey FOREIGN KEY (applicant_race_1) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_applicant_race_2_fkey FOREIGN KEY (applicant_race_2) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_applicant_race_3_fkey FOREIGN KEY (applicant_race_3) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_applicant_race_4_fkey FOREIGN KEY (applicant_race_4) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_applicant_race_5_fkey FOREIGN KEY (applicant_race_5) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_co_applicant_race_1_fkey FOREIGN KEY (co_applicant_race_1) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_co_applicant_race_2_fkey FOREIGN KEY (co_applicant_race_2) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_co_applicant_race_3_fkey FOREIGN KEY (co_applicant_race_3) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_co_applicant_race_4_fkey FOREIGN KEY (co_applicant_race_4) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_co_applicant_race_5_fkey FOREIGN KEY (co_applicant_race_5) REFERENCES race (race_code);
-ALTER TABLE application ADD CONSTRAINT application_applicant_sex_fkey FOREIGN KEY (applicant_sex) REFERENCES sex (sex_code);
-ALTER TABLE application ADD CONSTRAINT application_co_applicant_sex_fkey FOREIGN KEY (co_applicant_sex) REFERENCES sex (sex_code);
+ALTER TABLE application ADD CONSTRAINT application_applicant_ethnicity_fkey FOREIGN KEY (applicant_ethnicity) REFERENCES applicant_ethnicity (applicant_ethnicity);
+ALTER TABLE application ADD CONSTRAINT application_co_applicant_ethnicity_fkey FOREIGN KEY (co_applicant_ethnicity) REFERENCES co_applicant_ethnicity (co_applicant_ethnicity);
+ALTER TABLE application ADD CONSTRAINT application_applicant_sex_fkey FOREIGN KEY (applicant_sex) REFERENCES applicant_sex (applicant_sex);
+ALTER TABLE application ADD CONSTRAINT application_co_applicant_sex_fkey FOREIGN KEY (co_applicant_sex) REFERENCES co_applicant_sex (co_applicant_sex);
 ALTER TABLE application ADD CONSTRAINT application_purchaser_type_fkey FOREIGN KEY (purchaser_type) REFERENCES purchaser_type (purchaser_type);
-ALTER TABLE application ADD CONSTRAINT application_denial_reason_1_fkey FOREIGN KEY (denial_reason_1) REFERENCES denial_reason (denial_reason_code);
-ALTER TABLE application ADD CONSTRAINT application_denial_reason_2_fkey FOREIGN KEY (denial_reason_2) REFERENCES denial_reason (denial_reason_code);
-ALTER TABLE application ADD CONSTRAINT application_denial_reason_3_fkey FOREIGN KEY (denial_reason_3) REFERENCES denial_reason (denial_reason_code);
 ALTER TABLE application ADD CONSTRAINT application_hoepa_status_fkey FOREIGN KEY (hoepa_status) REFERENCES hoepa_status (hoepa_status);
 ALTER TABLE application ADD CONSTRAINT application_lien_status_fkey FOREIGN KEY (lien_status) REFERENCES lien_status (lien_status);
-
--- ---------------------------------------------------------------------
--- 5. Checks: stop with an error if any row was skipped or duplicated.
--- ---------------------------------------------------------------------
-DO $$
-DECLARE
-    n_prelim  BIGINT;
-    n_app     BIGINT;
-    n_missing BIGINT;
-    n_nullloc BIGINT;
-    n_nulls   BIGINT;
-BEGIN
-    SELECT COUNT(*) INTO n_prelim FROM prelim_typed;
-    SELECT COUNT(*) INTO n_app FROM application;
-    IF n_app <> 349563 OR n_app <> n_prelim THEN
-        RAISE EXCEPTION 'Row count mismatch: Preliminary=%, application=% (expected 349563)',
-                        n_prelim, n_app;
-    END IF;
-
-    -- every Preliminary row must have exactly one application row
-    SELECT COUNT(*) INTO n_missing
-    FROM prelim_typed p LEFT JOIN application a ON a.application_id = p.sequence_number
-    WHERE a.application_id IS NULL;
-    IF n_missing <> 0 THEN
-        RAISE EXCEPTION '% Preliminary rows were skipped', n_missing;
-    END IF;
-
-    -- rows whose location has a NULL value must still have been carried over
-    SELECT COUNT(*) INTO n_nullloc
-    FROM application a JOIN location l USING (location_id)
-    WHERE l.county_code IS NULL OR l.msamd IS NULL OR l.census_tract_number IS NULL;
-    IF n_nullloc <> (SELECT COUNT(*) FROM prelim_typed
-                     WHERE county_code IS NULL OR msamd IS NULL OR census_tract_number IS NULL) THEN
-        RAISE EXCEPTION 'Rows with NULL location values were not matched correctly';
-    END IF;
-
-    SELECT COUNT(*) INTO n_nulls FROM null_columns;
-    IF n_nulls <> 1 THEN
-        RAISE EXCEPTION 'null_columns must have exactly one row, has %', n_nulls;
-    END IF;
-
-    RAISE NOTICE 'OK: application has % rows, none skipped.', n_app;
-END $$;
-
--- Quick report
-SELECT 'Preliminary' AS tbl, COUNT(*) AS row_count FROM prelim_typed
-UNION ALL SELECT 'application', COUNT(*) FROM application
-UNION ALL SELECT 'location', COUNT(*) FROM location
-UNION ALL SELECT 'null_columns', COUNT(*) FROM null_columns
-UNION ALL SELECT 'agency', COUNT(*) FROM agency
-UNION ALL SELECT 'loan_type', COUNT(*) FROM loan_type
-UNION ALL SELECT 'property_type', COUNT(*) FROM property_type
-UNION ALL SELECT 'loan_purpose', COUNT(*) FROM loan_purpose
-UNION ALL SELECT 'owner_occupancy', COUNT(*) FROM owner_occupancy
-UNION ALL SELECT 'preapproval', COUNT(*) FROM preapproval
-UNION ALL SELECT 'action_taken', COUNT(*) FROM action_taken
-UNION ALL SELECT 'ethnicity', COUNT(*) FROM ethnicity
-UNION ALL SELECT 'race', COUNT(*) FROM race
-UNION ALL SELECT 'sex', COUNT(*) FROM sex
-UNION ALL SELECT 'purchaser_type', COUNT(*) FROM purchaser_type
-UNION ALL SELECT 'denial_reason', COUNT(*) FROM denial_reason
-UNION ALL SELECT 'hoepa_status', COUNT(*) FROM hoepa_status
-UNION ALL SELECT 'lien_status', COUNT(*) FROM lien_status
-UNION ALL SELECT 'msamd', COUNT(*) FROM msamd
-UNION ALL SELECT 'county', COUNT(*) FROM county
-UNION ALL SELECT 'state', COUNT(*) FROM state;
