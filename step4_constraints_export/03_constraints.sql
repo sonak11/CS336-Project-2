@@ -6,7 +6,9 @@
 --      first-normal-form join table -> application and its lookup table,
 --      location -> state / county / msa_md, county -> state).
 --   2. NOT NULL on every column that is never blank in the CSV.
---   3. CHECK constraints on the position numbers of the 1NF join tables.
+--   3. UNIQUE on location's ten columns; null_columns limited to one row.
+--   4. CHECK constraints on the 1NF join tables (slot ranges; no race 8
+--      "No co-applicant" for an applicant).
 --
 -- Run on ilab after 01_location_1nf.sql and 02_lookups_application.sql:
 --     \i 03_constraints.sql
@@ -166,7 +168,38 @@ ALTER TABLE application_denial DROP CONSTRAINT IF EXISTS application_denial_deni
     ADD CONSTRAINT application_denial_denial_reason_fkey FOREIGN KEY (denial_reason) REFERENCES denial_reason (denial_reason);
 
 -- ---------------------------------------------------------------------
--- 3. CHECK: position numbers stay inside the original column ranges
+-- 3. UNIQUE: the ten location columns together identify one location
+--    (NULLs count as equal). UNIQUE NULLS NOT DISTINCT needs PostgreSQL 15+;
+--    on an older server the same rule is a unique index on COALESCE(...).
+-- ---------------------------------------------------------------------
+ALTER TABLE location DROP CONSTRAINT IF EXISTS location_unique;
+DROP INDEX IF EXISTS location_unique;
+DO $$
+BEGIN
+    IF current_setting('server_version_num')::INT >= 150000 THEN
+        ALTER TABLE location ADD CONSTRAINT location_unique
+            UNIQUE NULLS NOT DISTINCT (state_code, county_code, msamd,
+                census_tract_number, population, minority_population,
+                hud_median_family_income, tract_to_msamd_income,
+                number_of_owner_occupied_units, number_of_1_to_4_family_units);
+    ELSE
+        CREATE UNIQUE INDEX location_unique ON location (
+            state_code, COALESCE(county_code, -1), COALESCE(msamd, -1),
+            COALESCE(census_tract_number, ''), COALESCE(population, -1),
+            COALESCE(minority_population, -1), COALESCE(hud_median_family_income, -1),
+            COALESCE(tract_to_msamd_income, -1), COALESCE(number_of_owner_occupied_units, -1),
+            COALESCE(number_of_1_to_4_family_units, -1));
+    END IF;
+END $$;
+
+-- null_columns must hold exactly one row: the export cross-joins it, so a
+-- second row would duplicate every exported row. A unique index on a
+-- constant expression allows only one row.
+DROP INDEX IF EXISTS null_columns_one_row;
+CREATE UNIQUE INDEX null_columns_one_row ON null_columns ((true));
+
+-- ---------------------------------------------------------------------
+-- 4. CHECK: position numbers stay inside the original column ranges
 --    (applicant_race_1..5, co_applicant_race_1..5, denial_reason_1..3).
 -- ---------------------------------------------------------------------
 ALTER TABLE applicant_race DROP CONSTRAINT IF EXISTS applicant_race_number_check,
@@ -176,10 +209,15 @@ ALTER TABLE co_applicant_race DROP CONSTRAINT IF EXISTS co_applicant_race_number
 ALTER TABLE application_denial DROP CONSTRAINT IF EXISTS application_denial_number_check,
     ADD CONSTRAINT application_denial_number_check CHECK (denial_reason_number BETWEEN 1 AND 3);
 
+-- Race code 8 means "No co-applicant", so it is valid for a co-applicant only.
+-- (applicant_race never contains 8 in the CSV.)
+ALTER TABLE applicant_race DROP CONSTRAINT IF EXISTS applicant_race_not_no_coapplicant,
+    ADD CONSTRAINT applicant_race_not_no_coapplicant CHECK (race <> 8);
+
 COMMIT;
 
 -- ---------------------------------------------------------------------
--- 4. Result: list every foreign key now in place (expect 25 rows).
+-- 5. Result: list every foreign key now in place (expect 25 rows).
 -- ---------------------------------------------------------------------
 SELECT conrelid::regclass AS table_name, conname AS constraint_name,
        pg_get_constraintdef(oid) AS definition

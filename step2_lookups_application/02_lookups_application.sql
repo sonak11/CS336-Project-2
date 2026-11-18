@@ -1,12 +1,14 @@
 -- =====================================================================
 -- CS336 Project 2, Step 2 -- 02_lookups_application.sql
--- Builds the code->name lookup tables, null_columns, location and the
--- main application table FROM the Preliminary table (load.sql).
+-- Builds the code->name lookup tables, null_columns and the main
+-- application table FROM the Preliminary table (load.sql). Needs the
+-- location table from 01_location_1nf.sql to look up location_id.
 -- Follows SCHEMA.md exactly (table names, column names, types, keys).
 --
 -- Run on ilab after load.sql has created and filled Preliminary:
 --     postgres
 --     \i load.sql                       (only needed once)
+--     \i 01_location_1nf.sql
 --     \i 02_lookups_application.sql
 --
 -- Design notes
@@ -33,7 +35,6 @@
 
 -- Clean slate so the script can be re-run (also removes tables from older versions).
 DROP TABLE IF EXISTS application CASCADE;
-DROP TABLE IF EXISTS location CASCADE;
 DROP TABLE IF EXISTS null_columns CASCADE;
 DROP TABLE IF EXISTS agency CASCADE;
 DROP TABLE IF EXISTS loan_type CASCADE;
@@ -347,59 +348,9 @@ SELECT MAX(edit_status), MAX(edit_status_name), MAX(application_date_indicator)
 FROM prelim_typed;
 
 -- ---------------------------------------------------------------------
--- 3. location: one row per distinct combination of the 10 location columns.
---    location_id is a serial number. All other columns except state_code are
---    nullable (the CSV has missing location values).
---    census_tract_number stays TEXT (leading zeros, e.g. 0103.00).
+-- 3. location is built by 01_location_1nf.sql (run before this script).
+--    Its foreign keys and UNIQUE rule are added by 03_constraints.sql.
 -- ---------------------------------------------------------------------
-CREATE TABLE location (
-    location_id                    INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    state_code                     INTEGER NOT NULL REFERENCES state (state_code),
-    county_code                    INTEGER,
-    msamd                          INTEGER REFERENCES msa_md (msamd),
-    census_tract_number            TEXT,
-    population                     INTEGER,
-    minority_population            NUMERIC,
-    hud_median_family_income       INTEGER,
-    tract_to_msamd_income          NUMERIC,
-    number_of_owner_occupied_units INTEGER,
-    number_of_1_to_4_family_units  INTEGER,
-    FOREIGN KEY (state_code, county_code) REFERENCES county (state_code, county_code)
-);
-
-INSERT INTO location (state_code, county_code, msamd, census_tract_number,
-                      population, minority_population, hud_median_family_income,
-                      tract_to_msamd_income, number_of_owner_occupied_units,
-                      number_of_1_to_4_family_units)
-SELECT DISTINCT state_code, county_code, msamd, census_tract_number,
-       population, minority_population, hud_median_family_income,
-       tract_to_msamd_income, number_of_owner_occupied_units,
-       number_of_1_to_4_family_units
-FROM prelim_typed
-ORDER BY state_code, county_code, census_tract_number, msamd, population,
-         minority_population, hud_median_family_income, tract_to_msamd_income,
-         number_of_owner_occupied_units, number_of_1_to_4_family_units;
-
--- All ten location columns are UNIQUE together, with NULLs counted as equal.
--- UNIQUE NULLS NOT DISTINCT needs PostgreSQL 15+; on an older server the
--- same rule is enforced with a unique index on COALESCE(...) expressions.
-DO $$
-BEGIN
-    IF current_setting('server_version_num')::INT >= 150000 THEN
-        ALTER TABLE location ADD CONSTRAINT location_unique
-            UNIQUE NULLS NOT DISTINCT (state_code, county_code, msamd,
-                census_tract_number, population, minority_population,
-                hud_median_family_income, tract_to_msamd_income,
-                number_of_owner_occupied_units, number_of_1_to_4_family_units);
-    ELSE
-        CREATE UNIQUE INDEX location_unique ON location (
-            state_code, COALESCE(county_code, -1), COALESCE(msamd, -1),
-            COALESCE(census_tract_number, ''), COALESCE(population, -1),
-            COALESCE(minority_population, -1), COALESCE(hud_median_family_income, -1),
-            COALESCE(tract_to_msamd_income, -1), COALESCE(number_of_owner_occupied_units, -1),
-            COALESCE(number_of_1_to_4_family_units, -1));
-    END IF;
-END $$;
 
 -- ---------------------------------------------------------------------
 -- 4. application: integer / numeric columns plus respondent_id only.

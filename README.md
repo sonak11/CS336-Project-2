@@ -7,9 +7,9 @@ database that can still reproduce the original CSV. The assignment is in
 | Who | Task | Assignment step | Folder | Status |
 |---|---|---|---|---|
 | Sonakshi Sharma (ss4910) | Functional dependencies + BCNF ER diagram | Step 1 (5 pts) | `step1_fds_er/` | ✅ done |
-| Kenneth Wang (ksw94) | Lookup tables + application table | Step 2 (3 pts) | `step2_lookups_application/` | ⬜ |
-| James Kurian (jjk369) | Location table + 1NF join tables + table video | Step 3 (4 pts) | `step3_location_1nf/` | ⬜ |
-| Maanya | Constraints, export, error video, spreadsheet screenshot | Step 4 (3 pts) | `step4_constraints_export/` | ⬜ |
+| Kenneth Wang (ksw94) | Lookup tables + application table | Step 2 (3 pts) | `step2_lookups_application/` | ✅ done |
+| James Kurian (jjk369) | Location table + 1NF join tables + table video | Step 3 (4 pts) | `step3_location_1nf/` | ✅ script · ⬜ video |
+| Maanya | Constraints, export, error video, spreadsheet screenshot | Step 4 (3 pts) | `step4_constraints_export/` | ✅ done |
 
 **Before you write any SQL, read [`SCHEMA.md`](SCHEMA.md).** It lists every table,
 column, type, NULL rule and key. All four tasks code to it, which is how we can work in
@@ -57,8 +57,9 @@ Put the CSV and every script in one folder, run `postgres`, then:
 \i step4_constraints_export/04_export.sql           -- writes the CSV from the normalized tables
 ```
 
-Scripts 01–03 get combined into the single "complete SQL script that creates the
-normalized database from the Preliminary table" for submission.
+Scripts 01–03 are combined into `submission/create_normalized_db.sql`, the single
+"complete SQL script that creates the normalized database from the Preliminary table".
+Running it instead of 01, 02 and 03 gives the same database.
 
 ## How to add your work
 
@@ -96,12 +97,27 @@ step1_fds_er/                  Sonakshi: functional_dependencies.txt, ER diagram
 step2_lookups_application/     Kenneth
 step3_location_1nf/            James
 step4_constraints_export/      Maanya
+submission/                    create_normalized_db.sql = scripts 01 + 02 + 03 in one file
 ```
 
 ## Final submission checklist
 
-- [ ] **Step 1:** `functional_dependencies.txt` + `ER_Diagram_BCNF.pdf`
-- [ ] **Step 3:** `project1/load.sql` (Preliminary script) + the complete normalization SQL script (01–03 combined) + table video (≤ 1 min)
-- [ ] **Step 4:** `04_export.sql` + error-insert video (≤ 1 min, 3 different rejections) + screenshot of the exported CSV in a spreadsheet
-- [ ] The normalized tables are loaded in the ilab database we name for grading
-- [ ] Compare the diagram against the real tables once more (`\d` each table)
+| Step | Turn in | File | Status |
+|---|---|---|---|
+| 1 | Functional dependencies (txt) | `step1_fds_er/functional_dependencies.txt` | ✅ |
+| 1 | ER diagram (PDF) | `step1_fds_er/ER_Diagram_BCNF.pdf` | ✅ |
+| 3 | Preliminary script from Project 1 | `project1/load.sql` | ✅ |
+| 3 | Complete script: Preliminary → normalized database | `submission/create_normalized_db.sql` | ✅ |
+| 3 | Video: `SELECT * FROM` every new table (≤ 1 min) | run `step3_location_1nf/show_tables.sql` | ⬜ James |
+| 4 | Export script | `step4_constraints_export/04_export.sql` | ✅ |
+| 4 | Video: 3 rejected inserts (≤ 1 min) | `step4_constraints_export/Error_Inserts_Recording.mov` | ✅ |
+| 4 | Screenshot of the exported CSV in a spreadsheet | `step4_constraints_export/Exported_CSV_SS.png` | ✅ |
+
+Checked end to end on PostgreSQL 16 from an empty database: load.sql, then
+create_normalized_db.sql (or 01, 02, 03), then 04_export.sql. The export is
+identical to the original CSV (`diff` prints nothing), even with Preliminary
+renamed away. The 25 tables match the ER diagram column for column, with the
+same primary keys.
+
+The normalized tables must be loaded, with the final 03_constraints.sql, in the
+ilab database we name for grading.
